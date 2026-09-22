@@ -1,0 +1,29 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/app/build
+
+# Built application packages & signatures
+*.apk
+*.aab
+*.ap_
+*.idsig
+
+# Kotlin & Gradle cache
+.kotlin/
+.gradle/
+
+# Keystores & sensitive keys
+*.jks
+*.keystore
+
+# OS & IDE
+Thumbs.db
+.idea/

@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Subget</string>
+    <string name="search_hint">Search movie or series (e.g. Inception)...</string>
+    <string name="settings_title">Settings</string>
+    <string name="subdl_api_key_label">SubDL API Key</string>
+    <string name="subdl_api_key_hint">Enter your subdl.com API key</string>
+    <string name="subdl_api_key_help">Get your free API key at subdl.com</string>
+    <string name="save">Save</string>
+    <string name="api_key_saved">API key saved securely</string>
+    <string name="api_key_required_prompt">SubDL API key is required to search subtitles. Please configure it in Settings.</string>
+    <string name="go_to_settings">Go to Settings</string>
+    <string name="download">Download</string>
+    <string name="downloading">Downloading...</string>
+    <string name="extracting">Extracting...</string>
+    <string name="download_completed">Saved to Download/Subget/</string>
+    <string name="download_failed">Download failed</string>
+    <string name="no_subtitles_found">No subtitles found. Try another query or language filter.</string>
+</resources>
