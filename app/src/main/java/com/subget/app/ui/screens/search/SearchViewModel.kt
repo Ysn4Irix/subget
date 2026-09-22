@@ -319,9 +319,10 @@ class SearchViewModel(
         suggestionsJob?.cancel()
         val titleTrimmed = suggestion.title.trim()
         lastSubmittedQuery = titleTrimmed
-        _queryFlow.value = suggestion.title
+        settingsRepository.addRecentSearch(titleTrimmed)
+        _queryFlow.value = ""
         _uiState.value = _uiState.value.copy(
-            query = suggestion.title,
+            query = "",
             showSuggestions = false,
             suggestions = emptyList(),
             isSuggestionsLoading = false
@@ -399,7 +400,8 @@ class SearchViewModel(
 
     fun onLanguageSelected(code: String?) {
         _uiState.value = _uiState.value.copy(selectedLanguage = code)
-        if (_uiState.value.query.trim().length >= 2) {
+        val targetQuery = _uiState.value.query.trim().ifBlank { currentFilmTitle ?: "" }
+        if (targetQuery.length >= 2) {
             searchSubtitles()
         }
     }
@@ -467,8 +469,9 @@ class SearchViewModel(
     }
 
     fun selectSubtitleForDetails(item: SubdlSubtitleItem?) {
-        if (item != null && _uiState.value.query.isNotBlank()) {
-            settingsRepository.addRecentSearch(_uiState.value.query.trim())
+        val targetQuery = _uiState.value.query.trim().ifBlank { currentFilmTitle ?: "" }
+        if (item != null && targetQuery.isNotBlank()) {
+            settingsRepository.addRecentSearch(targetQuery)
         }
         _uiState.value = _uiState.value.copy(selectedSubtitleForDetails = item)
     }
@@ -476,7 +479,7 @@ class SearchViewModel(
     fun searchSubtitles() {
         suggestionsJob?.cancel()
         _uiState.value = _uiState.value.copy(showSuggestions = false, suggestions = emptyList())
-        val rawQuery = _uiState.value.query.trim()
+        val rawQuery = _uiState.value.query.trim().ifBlank { currentFilmTitle ?: "" }
         if (rawQuery.isBlank()) return
         lastSubmittedQuery = rawQuery
         executeSearch(rawQuery = rawQuery, isAutoSearch = false, presetImdbId = currentImdbId)

@@ -86,15 +86,15 @@ class SuggestionsTest {
         assertTrue(loaded.showSuggestions)
         assertEquals(2, loaded.suggestions.size)
 
-        // Suggestion selected by user
+        // Suggestion selected by user (search input cleared, suggestions closed)
         val selected = loaded.copy(
-            query = "Monarch: Legacy of Monsters",
+            query = "",
             showSuggestions = false,
             suggestions = emptyList()
         )
         assertFalse(selected.showSuggestions)
         assertTrue(selected.suggestions.isEmpty())
-        assertEquals("Monarch: Legacy of Monsters", selected.query)
+        assertEquals("", selected.query)
     }
 
     @Test

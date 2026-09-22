@@ -100,6 +100,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -128,6 +129,7 @@ fun SearchScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val focusRequester = remember { FocusRequester() }
     var isSearchFocused by remember { mutableStateOf(false) }
@@ -298,6 +300,7 @@ fun SearchScreen(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                focusManager.clearFocus()
                                 keyboardController?.hide()
                                 viewModel.searchSubtitles()
                             }),
@@ -341,6 +344,7 @@ fun SearchScreen(
                                 .background(MaterialTheme.colorScheme.primary)
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    focusManager.clearFocus()
                                     keyboardController?.hide()
                                     viewModel.searchSubtitles()
                                 },
@@ -360,6 +364,8 @@ fun SearchScreen(
 
             // Title Suggestions Dropdown
             BackHandler(enabled = uiState.showSuggestions) {
+                focusManager.clearFocus()
+                keyboardController?.hide()
                 viewModel.dismissSuggestions()
             }
 
@@ -372,6 +378,7 @@ fun SearchScreen(
                     suggestions = uiState.suggestions,
                     onSuggestionSelected = { suggestion ->
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        focusManager.clearFocus()
                         keyboardController?.hide()
                         viewModel.onSuggestionSelected(suggestion)
                     },
@@ -400,6 +407,8 @@ fun SearchScreen(
                         indication = null,
                         enabled = uiState.showSuggestions
                     ) {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
                         viewModel.dismissSuggestions()
                     }
             ) {
