@@ -125,3 +125,11 @@ data class SubdlSubtitleItem(
     }
 }
 
+data class SearchSuggestion(
+    val title: String,
+    val year: String? = null,
+    val mediaType: String? = null,
+    val imdbId: String? = null,
+    val posterUrl: String? = null
+)
+

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.subget.app.data.api.models.MediaPoster
+import com.subget.app.data.api.models.SearchSuggestion
 import com.subget.app.data.api.models.SubdlSubtitleItem
 import com.subget.app.data.repository.PosterRepository
 import com.subget.app.data.repository.SettingsRepository
@@ -71,7 +72,10 @@ data class SearchUiState(
     val isFirstLaunch: Boolean = false,
     val downloadStatuses: Map<String, DownloadStatus> = emptyMap(),
     val savedUris: Map<String, Uri> = emptyMap(),
-    val snackbarMessage: String? = null
+    val snackbarMessage: String? = null,
+    val suggestions: List<SearchSuggestion> = emptyList(),
+    val showSuggestions: Boolean = false,
+    val isSuggestionsLoading: Boolean = false
 ) {
     val availableSeasons: List<Int>
         get() {
@@ -262,12 +266,21 @@ class SearchViewModel(
         }
         viewModelScope.launch {
             _queryFlow
-                .debounce(500L)
+                .debounce(350L)
                 .distinctUntilChanged()
                 .collectLatest { query ->
                     val trimmed = query.trim()
+                    if (trimmed.equals(lastSubmittedQuery, ignoreCase = true)) {
+                        return@collectLatest
+                    }
                     if (trimmed.length >= 2) {
-                        executeSearch(rawQuery = trimmed, isAutoSearch = true)
+                        fetchSuggestions(trimmed)
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            suggestions = emptyList(),
+                            showSuggestions = false,
+                            isSuggestionsLoading = false
+                        )
                     }
                 }
         }
@@ -277,35 +290,91 @@ class SearchViewModel(
     private var currentImdbId: String? = null
     private var currentFilmTitle: String? = null
     private val fetchedSeasons = mutableSetOf<Int>()
+    private var suggestionsJob: Job? = null
+    private var lastSubmittedQuery: String? = null
+
+    private fun fetchSuggestions(query: String) {
+        suggestionsJob?.cancel()
+        suggestionsJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSuggestionsLoading = true)
+            try {
+                val list = posterRepository.getSearchSuggestions(query)
+                val currentTrimmed = _uiState.value.query.trim()
+                if (currentTrimmed.equals(query, ignoreCase = true) && !query.equals(lastSubmittedQuery, ignoreCase = true)) {
+                    _uiState.value = _uiState.value.copy(
+                        suggestions = list,
+                        showSuggestions = list.isNotEmpty(),
+                        isSuggestionsLoading = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(isSuggestionsLoading = false)
+                }
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(isSuggestionsLoading = false)
+            }
+        }
+    }
+
+    fun onSuggestionSelected(suggestion: SearchSuggestion) {
+        suggestionsJob?.cancel()
+        val titleTrimmed = suggestion.title.trim()
+        lastSubmittedQuery = titleTrimmed
+        _queryFlow.value = suggestion.title
+        _uiState.value = _uiState.value.copy(
+            query = suggestion.title,
+            showSuggestions = false,
+            suggestions = emptyList(),
+            isSuggestionsLoading = false
+        )
+        executeSearch(
+            rawQuery = suggestion.title,
+            isAutoSearch = false,
+            presetImdbId = suggestion.imdbId
+        )
+    }
+
+    fun dismissSuggestions() {
+        _uiState.value = _uiState.value.copy(showSuggestions = false)
+    }
 
     fun onQueryChanged(newQuery: String) {
+        lastSubmittedQuery = null
         val trimmed = newQuery.trim()
         val isBelowThreshold = trimmed.length < 2
 
         if (isBelowThreshold) {
+            suggestionsJob?.cancel()
             activeSearchJob?.cancel()
             currentSdId = null
             currentImdbId = null
             currentFilmTitle = null
             fetchedSeasons.clear()
+            _uiState.value = _uiState.value.copy(
+                query = newQuery,
+                suggestions = emptyList(),
+                showSuggestions = false,
+                isSuggestionsLoading = false,
+                isLoading = false,
+                isPosterLoading = false,
+                subtitles = emptyList(),
+                mediaPoster = null,
+                selectedQuality = QualityFilterOption.ALL,
+                selectedSeason = null,
+                selectedEpisode = null,
+                errorMessage = null
+            )
+        } else {
+            _uiState.value = _uiState.value.copy(
+                query = newQuery
+            )
         }
-
-        _uiState.value = _uiState.value.copy(
-            query = newQuery,
-            errorMessage = null,
-            isLoading = if (isBelowThreshold) false else _uiState.value.isLoading,
-            isPosterLoading = if (isBelowThreshold) false else _uiState.value.isPosterLoading,
-            subtitles = if (isBelowThreshold) emptyList() else _uiState.value.subtitles,
-            mediaPoster = if (isBelowThreshold) null else _uiState.value.mediaPoster,
-            selectedQuality = if (isBelowThreshold) QualityFilterOption.ALL else _uiState.value.selectedQuality,
-            selectedSeason = if (isBelowThreshold) null else _uiState.value.selectedSeason,
-            selectedEpisode = if (isBelowThreshold) null else _uiState.value.selectedEpisode
-        )
 
         _queryFlow.value = newQuery
     }
 
     fun clearQuery() {
+        lastSubmittedQuery = null
+        suggestionsJob?.cancel()
         activeSearchJob?.cancel()
         currentSdId = null
         currentImdbId = null
@@ -316,8 +385,11 @@ class SearchViewModel(
             query = "",
             subtitles = emptyList(),
             mediaPoster = null,
+            suggestions = emptyList(),
+            showSuggestions = false,
             isLoading = false,
             isPosterLoading = false,
+            isSuggestionsLoading = false,
             errorMessage = null,
             selectedQuality = QualityFilterOption.ALL,
             selectedSeason = null,
@@ -402,12 +474,15 @@ class SearchViewModel(
     }
 
     fun searchSubtitles() {
+        suggestionsJob?.cancel()
+        _uiState.value = _uiState.value.copy(showSuggestions = false, suggestions = emptyList())
         val rawQuery = _uiState.value.query.trim()
         if (rawQuery.isBlank()) return
-        executeSearch(rawQuery = rawQuery, isAutoSearch = false)
+        lastSubmittedQuery = rawQuery
+        executeSearch(rawQuery = rawQuery, isAutoSearch = false, presetImdbId = currentImdbId)
     }
 
-    private fun executeSearch(rawQuery: String, isAutoSearch: Boolean) {
+    private fun executeSearch(rawQuery: String, isAutoSearch: Boolean, presetImdbId: String? = null) {
         val query = rawQuery.trim()
         if (query.isBlank()) return
 
@@ -428,7 +503,7 @@ class SearchViewModel(
             val cached = searchCache[cacheKey]
             if (cached != null) {
                 currentSdId = cached.sdId
-                currentImdbId = cached.imdbId
+                currentImdbId = cached.imdbId ?: presetImdbId
                 currentFilmTitle = cached.filmTitle
                 fetchedSeasons.clear()
                 fetchedSeasons.addAll(cached.fetchedSeasons)
@@ -453,7 +528,7 @@ class SearchViewModel(
         val queryEpisode = parsed.episodeNumber
 
         currentSdId = null
-        currentImdbId = null
+        currentImdbId = presetImdbId
         currentFilmTitle = cleanTitle
         fetchedSeasons.clear()
 
@@ -469,10 +544,14 @@ class SearchViewModel(
                 selectedEpisode = queryEpisode
             )
 
-            // Fast preliminary search using clean query title
+            // Fast preliminary search using clean query title or presetImdbId
             val quickPosterJob = launch {
                 try {
-                    val poster = posterRepository.getMediaPoster(cleanTitle)
+                    val poster = if (!presetImdbId.isNullOrBlank()) {
+                        posterRepository.getMediaPosterByImdbId(presetImdbId, titleFallback = cleanTitle)
+                    } else {
+                        posterRepository.getMediaPoster(cleanTitle)
+                    }
                     if (poster != null && _uiState.value.mediaPoster == null) {
                         _uiState.value = _uiState.value.copy(mediaPoster = poster)
                         if (poster.seriesSeasons.isNotEmpty()) {
@@ -485,6 +564,7 @@ class SearchViewModel(
 
             val searchResult = subtitleRepository.searchSubtitlesWithMedia(
                 query = cleanTitle,
+                imdbId = presetImdbId,
                 seasonNumber = querySeason,
                 episodeNumber = queryEpisode,
                 languages = _uiState.value.selectedLanguage
@@ -496,7 +576,7 @@ class SearchViewModel(
                     val items = resultData.subtitles
 
                     currentSdId = matchedMedia?.sdId
-                    currentImdbId = matchedMedia?.imdbId
+                    currentImdbId = matchedMedia?.imdbId ?: presetImdbId
                     if (!matchedMedia?.name.isNullOrBlank()) {
                         currentFilmTitle = matchedMedia?.name
                     }
@@ -531,18 +611,19 @@ class SearchViewModel(
 
                     updateCache()
 
-                    // Match Image Retrieval with exact media returned by SubDL
-                    if (matchedMedia != null) {
+                    // Match Image Retrieval with exact media returned by SubDL or presetImdbId
+                    val finalImdbId = matchedMedia?.imdbId ?: presetImdbId
+                    if (matchedMedia != null || !finalImdbId.isNullOrBlank()) {
                         launch {
                             try {
-                                val exactPoster = if (!matchedMedia.imdbId.isNullOrBlank()) {
+                                val exactPoster = if (!finalImdbId.isNullOrBlank()) {
                                     posterRepository.getMediaPosterByImdbId(
-                                        imdbId = matchedMedia.imdbId,
-                                        type = matchedMedia.type,
-                                        titleFallback = matchedMedia.name,
-                                        yearFallback = matchedMedia.yearString
+                                        imdbId = finalImdbId,
+                                        type = matchedMedia?.type,
+                                        titleFallback = matchedMedia?.name ?: cleanTitle,
+                                        yearFallback = matchedMedia?.yearString
                                     )
-                                } else if (!matchedMedia.name.isNullOrBlank()) {
+                                } else if (!matchedMedia?.name.isNullOrBlank()) {
                                     posterRepository.getMediaPoster(matchedMedia.name)
                                 } else null
 

@@ -2,6 +2,7 @@ package com.subget.app.data.repository
 
 import android.util.Log
 import com.subget.app.data.api.models.MediaPoster
+import com.subget.app.data.api.models.SearchSuggestion
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -289,5 +290,84 @@ class PosterRepository(
             .replace(Regex("""[\[\].()_-]"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
+    }
+
+    suspend fun getSearchSuggestions(rawQuery: String): List<SearchSuggestion> = withContext(Dispatchers.IO) {
+        val cleanQuery = sanitizeQuery(rawQuery)
+        if (cleanQuery.length < 2) return@withContext emptyList()
+
+        coroutineScope {
+            val movieDeferred = async { fetchCinemetaSuggestions(cleanQuery, "movie") }
+            val seriesDeferred = async { fetchCinemetaSuggestions(cleanQuery, "series") }
+
+            val movies = movieDeferred.await()
+            val series = seriesDeferred.await()
+
+            val combined = mutableListOf<SearchSuggestion>()
+            val maxCount = 7
+
+            val isTvHint = cleanQuery.contains(Regex("""(?i)\b(s\d\d|season|ep\d\d|episode)\b"""))
+            val firstList = if (isTvHint) series else movies
+            val secondList = if (isTvHint) movies else series
+
+            val seenTitles = mutableSetOf<String>()
+            fun addIfNew(item: SearchSuggestion) {
+                val key = "${item.title.lowercase()}_${item.year ?: ""}_${item.mediaType}"
+                if (seenTitles.add(key) && combined.size < maxCount) {
+                    combined.add(item)
+                }
+            }
+
+            val maxLen = maxOf(firstList.size, secondList.size)
+            for (i in 0 until maxLen) {
+                if (i < firstList.size) addIfNew(firstList[i])
+                if (i < secondList.size) addIfNew(secondList[i])
+                if (combined.size >= maxCount) break
+            }
+
+            combined
+        }
+    }
+
+    private fun fetchCinemetaSuggestions(query: String, type: String): List<SearchSuggestion> {
+        try {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val url = "https://v3-cinemeta.strem.io/catalog/$type/top/search=$encoded.json"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Subget-Android/1.0")
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return emptyList()
+
+            val body = response.body?.string() ?: return emptyList()
+            val root = json.parseToJsonElement(body).jsonObject
+            val metas = root["metas"]?.jsonArray ?: return emptyList()
+
+            val itemType = if (type == "movie") "Movie" else "TV Series"
+            val list = mutableListOf<SearchSuggestion>()
+
+            for (elem in metas.take(5)) {
+                val obj = elem.jsonObject
+                val name = obj["name"]?.jsonPrimitive?.content ?: continue
+                val id = obj["id"]?.jsonPrimitive?.content
+                val releaseInfo = obj["releaseInfo"]?.jsonPrimitive?.content
+                val posterUrl = obj["poster"]?.jsonPrimitive?.content
+
+                list.add(
+                    SearchSuggestion(
+                        title = name,
+                        year = releaseInfo,
+                        mediaType = itemType,
+                        imdbId = id,
+                        posterUrl = posterUrl
+                    )
+                )
+            }
+            return list
+        } catch (e: Exception) {
+            return emptyList()
+        }
     }
 }

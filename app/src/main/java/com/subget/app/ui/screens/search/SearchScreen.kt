@@ -1,18 +1,24 @@
 package com.subget.app.ui.screens.search
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.res.painterResource
 import com.subget.app.R
+import com.subget.app.data.api.models.SearchSuggestion
+import coil.compose.AsyncImage
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +54,7 @@ import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Tv
@@ -96,9 +103,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.subget.app.ui.components.DownloadStatus
@@ -289,6 +298,7 @@ fun SearchScreen(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                keyboardController?.hide()
                                 viewModel.searchSubtitles()
                             }),
                             modifier = Modifier
@@ -298,7 +308,7 @@ fun SearchScreen(
                         )
                     }
                     if (uiState.query.isNotEmpty()) {
-                        if (uiState.isLoading) {
+                        if (uiState.isLoading || uiState.isSuggestionsLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 color = MaterialTheme.colorScheme.primary,
@@ -331,6 +341,7 @@ fun SearchScreen(
                                 .background(MaterialTheme.colorScheme.primary)
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    keyboardController?.hide()
                                     viewModel.searchSubtitles()
                                 },
                             contentAlignment = Alignment.Center
@@ -347,6 +358,29 @@ fun SearchScreen(
                 }
             }
 
+            // Title Suggestions Dropdown
+            BackHandler(enabled = uiState.showSuggestions) {
+                viewModel.dismissSuggestions()
+            }
+
+            AnimatedVisibility(
+                visible = uiState.showSuggestions && uiState.suggestions.isNotEmpty(),
+                enter = fadeIn(tween(150)) + expandVertically(tween(200)),
+                exit = fadeOut(tween(150)) + shrinkVertically(tween(200))
+            ) {
+                SearchSuggestionsDropdown(
+                    suggestions = uiState.suggestions,
+                    onSuggestionSelected = { suggestion ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        keyboardController?.hide()
+                        viewModel.onSuggestionSelected(suggestion)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
             // Language Filter Chips
             LanguageFilterChips(
                 selectedLanguage = uiState.selectedLanguage,
@@ -361,6 +395,13 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = uiState.showSuggestions
+                    ) {
+                        viewModel.dismissSuggestions()
+                    }
             ) {
                 when {
                     uiState.isLoading && uiState.subtitles.isEmpty() -> {
@@ -1273,5 +1314,145 @@ private fun ScrollAnimatedItem(
         }
     ) {
         content()
+    }
+}
+
+@Composable
+private fun SearchSuggestionsDropdown(
+    suggestions: List<SearchSuggestion>,
+    onSuggestionSelected: (SearchSuggestion) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        ) {
+            val itemsToShow = suggestions.take(6)
+            itemsToShow.forEachIndexed { index, suggestion ->
+                SearchSuggestionItem(
+                    suggestion = suggestion,
+                    onClick = { onSuggestionSelected(suggestion) }
+                )
+                if (index < itemsToShow.lastIndex) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.padding(horizontal = 14.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchSuggestionItem(
+    suggestion: SearchSuggestion,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Poster thumbnail
+        Box(
+            modifier = Modifier
+                .size(34.dp, 48.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!suggestion.posterUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = suggestion.posterUrl,
+                    contentDescription = suggestion.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = if (suggestion.mediaType.equals("TV Series", ignoreCase = true) ||
+                        suggestion.mediaType.equals("Series", ignoreCase = true)
+                    ) {
+                        Icons.Default.Tv
+                    } else {
+                        Icons.Default.Movie
+                    },
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Title and Metadata
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = suggestion.title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (!suggestion.mediaType.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                    ) {
+                        Text(
+                            text = suggestion.mediaType,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+
+                if (!suggestion.year.isNullOrBlank()) {
+                    Text(
+                        text = suggestion.year,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // Trailing arrow indicator
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = "Select",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
