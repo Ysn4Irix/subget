@@ -608,6 +608,12 @@ fun SearchScreen(
                         ) {
                             // Filter & Sort Control Bar (Zero-Scroll Adaptive Layout)
                             item(key = "filter_sort_bar") {
+                                val hasSeasons = uiState.availableSeasons.isNotEmpty()
+                                val sortWeight = if (hasSeasons) 1.15f else 1.25f
+                                val qualityWeight = if (hasSeasons) 1.0f else 1.1f
+                                val seasonWeight = 1.0f
+                                val hiWeight = if (hasSeasons) 0.85f else 0.85f
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -616,15 +622,20 @@ fun SearchScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     // 1. Sort Selector Button
-                                    Box {
+                                    Box(modifier = Modifier.weight(sortWeight)) {
                                         Surface(
-                                            modifier = Modifier.clickable { sortMenuExpanded = true },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { sortMenuExpanded = true },
                                             shape = RoundedCornerShape(10.dp),
                                             color = MaterialTheme.colorScheme.surfaceVariant,
                                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.Center,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Icon(
@@ -638,7 +649,9 @@ fun SearchScreen(
                                                     text = uiState.sortOption.displayName,
                                                     style = MaterialTheme.typography.labelMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    fontWeight = FontWeight.SemiBold
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                                 Spacer(modifier = Modifier.width(2.dp))
                                                 Icon(
@@ -710,10 +723,12 @@ fun SearchScreen(
                                     }
 
                                     // 2. Quality Selector Button
-                                    Box {
+                                    Box(modifier = Modifier.weight(qualityWeight)) {
                                         val isQualityActive = uiState.selectedQuality != QualityFilterOption.ALL
                                         Surface(
-                                            modifier = Modifier.clickable { qualityMenuExpanded = true },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { qualityMenuExpanded = true },
                                             shape = RoundedCornerShape(10.dp),
                                             color = if (isQualityActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant,
                                             border = BorderStroke(
@@ -722,7 +737,10 @@ fun SearchScreen(
                                             )
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.Center,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Icon(
@@ -736,7 +754,9 @@ fun SearchScreen(
                                                     text = uiState.selectedQuality.label,
                                                     style = MaterialTheme.typography.labelMedium,
                                                     color = if (isQualityActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    fontWeight = if (isQualityActive) FontWeight.Bold else FontWeight.SemiBold
+                                                    fontWeight = if (isQualityActive) FontWeight.Bold else FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                                 Spacer(modifier = Modifier.width(2.dp))
                                                 Icon(
@@ -815,7 +835,6 @@ fun SearchScreen(
                                     }
 
                                     // 3. Unified TV Series Season & Episode Button (Contextual for series)
-                                    val hasSeasons = uiState.availableSeasons.isNotEmpty()
                                     if (hasSeasons) {
                                         val isSeriesActive = uiState.selectedSeason != null || uiState.selectedEpisode != null
                                         val seriesLabel = when {
@@ -828,9 +847,11 @@ fun SearchScreen(
                                             else -> "Season"
                                         }
 
-                                        Box {
+                                        Box(modifier = Modifier.weight(seasonWeight)) {
                                             Surface(
-                                                modifier = Modifier.clickable { seriesMenuExpanded = true },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { seriesMenuExpanded = true },
                                                 shape = RoundedCornerShape(10.dp),
                                                 color = if (isSeriesActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant,
                                                 border = BorderStroke(
@@ -839,7 +860,10 @@ fun SearchScreen(
                                                 )
                                             ) {
                                                 Row(
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.Center,
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Icon(
@@ -853,7 +877,9 @@ fun SearchScreen(
                                                         text = seriesLabel,
                                                         style = MaterialTheme.typography.labelMedium,
                                                         color = if (isSeriesActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        fontWeight = if (isSeriesActive) FontWeight.Bold else FontWeight.SemiBold
+                                                        fontWeight = if (isSeriesActive) FontWeight.Bold else FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                     Spacer(modifier = Modifier.width(2.dp))
                                                     Icon(
@@ -1111,10 +1137,12 @@ fun SearchScreen(
 
                                     // 4. HI Only Filter Toggle Pill
                                     Surface(
-                                        modifier = Modifier.clickable {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            viewModel.toggleHiOnly()
-                                        },
+                                        modifier = Modifier
+                                            .weight(hiWeight)
+                                            .clickable {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                viewModel.toggleHiOnly()
+                                            },
                                         shape = RoundedCornerShape(10.dp),
                                         color = if (uiState.hiOnly) MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
                                         border = BorderStroke(
@@ -1123,7 +1151,10 @@ fun SearchScreen(
                                         )
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 6.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.Center,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
@@ -1137,7 +1168,8 @@ fun SearchScreen(
                                                 text = "HI",
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = if (uiState.hiOnly) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontWeight = if (uiState.hiOnly) FontWeight.Bold else FontWeight.SemiBold
+                                                fontWeight = if (uiState.hiOnly) FontWeight.Bold else FontWeight.SemiBold,
+                                                maxLines = 1
                                             )
                                         }
                                     }
