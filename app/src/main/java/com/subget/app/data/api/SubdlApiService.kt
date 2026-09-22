@@ -1,6 +1,5 @@
 package com.subget.app.data.api
 
-import com.subget.app.data.api.models.ApiQuotaInfo
 import com.subget.app.data.api.models.SubdlResponse
 import com.subget.app.data.api.models.SubdlSubtitleItem
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +8,6 @@ import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -87,7 +85,6 @@ class SubdlApiService(
 
         try {
             client.newCall(request).execute().use { response ->
-                val quotaInfo = extractQuota(response)
                 val body = response.body?.string()
                 android.util.Log.d("SubdlApiService", "Response code: ${response.code}, body: $body")
                 if (!response.isSuccessful) {
@@ -101,7 +98,7 @@ class SubdlApiService(
                 }
 
                 if (body.isNullOrBlank()) {
-                    return@withContext Result.success(com.subget.app.data.api.models.SubdlSearchResult(quota = quotaInfo))
+                    return@withContext Result.success(com.subget.app.data.api.models.SubdlSearchResult())
                 }
 
                 val subdlResponse = json.decodeFromString<SubdlResponse>(body)
@@ -121,58 +118,9 @@ class SubdlApiService(
                 Result.success(
                     com.subget.app.data.api.models.SubdlSearchResult(
                         media = subdlResponse.primaryMedia,
-                        subtitles = enrichedItems,
-                        quota = quotaInfo
+                        subtitles = enrichedItems
                     )
                 )
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    fun extractQuota(response: Response): ApiQuotaInfo? {
-        val limit = response.header("X-RateLimit-Limit")?.toIntOrNull()
-        val remaining = response.header("X-RateLimit-Remaining")?.toIntOrNull()
-        val reset = response.header("X-RateLimit-Reset")?.toLongOrNull()
-        return if (limit != null && remaining != null) {
-            ApiQuotaInfo(
-                limit = limit,
-                remaining = remaining,
-                resetEpochSeconds = reset,
-                plan = if (limit > 5000) "Pro" else "Free"
-            )
-        } else null
-    }
-
-    suspend fun fetchAccountQuota(apiKey: String): Result<ApiQuotaInfo> = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("SubDL API key is required"))
-        }
-
-        val url = "https://api.subdl.com/api/v1/subtitles?api_key=${apiKey.trim()}&subs_per_page=1&film_name=Inception"
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", "Subget-Android/1.0")
-            .header("Accept", "application/json")
-            .get()
-            .build()
-
-        try {
-            client.newCall(request).execute().use { response ->
-                val quota = extractQuota(response)
-                if (quota != null) {
-                    Result.success(quota)
-                } else if (!response.isSuccessful) {
-                    val errorMsg = when (response.code) {
-                        401 -> "Invalid SubDL API key."
-                        429 -> "Daily rate limit exceeded."
-                        else -> "Server error (${response.code})"
-                    }
-                    Result.failure(IOException(errorMsg))
-                } else {
-                    Result.failure(IOException("Rate limit headers not found in response"))
-                }
             }
         } catch (e: Exception) {
             Result.failure(e)

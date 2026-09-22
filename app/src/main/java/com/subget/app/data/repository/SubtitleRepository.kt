@@ -21,7 +21,7 @@ class SubtitleRepository(
             return Result.failure(IllegalStateException("API_KEY_MISSING"))
         }
         val effectiveLanguages = languages ?: settingsRepository.getPreferredLanguages()
-        val result = apiService.searchSubtitlesWithMedia(
+        return apiService.searchSubtitlesWithMedia(
             apiKey = apiKey,
             filmName = query,
             sdId = sdId,
@@ -31,22 +31,6 @@ class SubtitleRepository(
             seasonNumber = seasonNumber,
             episodeNumber = episodeNumber
         )
-        result.getOrNull()?.quota?.let {
-            settingsRepository.setQuota(it)
-        }
-        return result
-    }
-
-    suspend fun refreshQuota(): Result<com.subget.app.data.api.models.ApiQuotaInfo> {
-        val apiKey = settingsRepository.getApiKey()
-        if (apiKey.isBlank()) {
-            return Result.failure(IllegalStateException("API_KEY_MISSING"))
-        }
-        val result = apiService.fetchAccountQuota(apiKey)
-        result.getOrNull()?.let {
-            settingsRepository.setQuota(it)
-        }
-        return result
     }
 
     suspend fun searchSubtitles(

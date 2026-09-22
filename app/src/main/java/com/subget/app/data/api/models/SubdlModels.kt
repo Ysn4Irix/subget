@@ -40,59 +40,9 @@ data class SubdlResponse(
         get() = results?.firstOrNull()
 }
 
-@Serializable
-data class ApiQuotaInfo(
-    val limit: Int,
-    val remaining: Int,
-    val resetEpochSeconds: Long? = null,
-    val plan: String = "Free"
-) {
-    val used: Int
-        get() = (limit - remaining).coerceAtLeast(0)
-
-    val percentage: Float
-        get() = if (limit > 0) (used.toFloat() / limit).coerceIn(0f, 1f) else 0f
-
-    val isLow: Boolean
-        get() = remaining <= 250 || percentage >= 0.80f
-
-    val isExhausted: Boolean
-        get() = remaining <= 0
-
-    val formattedResetTime: String?
-        get() {
-            if (resetEpochSeconds == null || resetEpochSeconds <= 0) return null
-            return try {
-                val instant = java.time.Instant.ofEpochSecond(resetEpochSeconds)
-                val zone = java.time.ZoneId.systemDefault()
-                val dt = java.time.ZonedDateTime.ofInstant(instant, zone)
-                val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d, h:mm a")
-                formatter.format(dt)
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-    val resetCountdownText: String?
-        get() {
-            if (resetEpochSeconds == null || resetEpochSeconds <= 0) return null
-            val now = System.currentTimeMillis() / 1000
-            val diff = resetEpochSeconds - now
-            if (diff <= 0) return "Resets soon"
-            val hours = diff / 3600
-            val minutes = (diff % 3600) / 60
-            return when {
-                hours > 0 -> "in ${hours}h ${minutes}m"
-                minutes > 0 -> "in ${minutes}m"
-                else -> "in < 1m"
-            }
-        }
-}
-
 data class SubdlSearchResult(
     val media: SubdlMediaResult? = null,
-    val subtitles: List<SubdlSubtitleItem> = emptyList(),
-    val quota: ApiQuotaInfo? = null
+    val subtitles: List<SubdlSubtitleItem> = emptyList()
 )
 
 @Serializable
