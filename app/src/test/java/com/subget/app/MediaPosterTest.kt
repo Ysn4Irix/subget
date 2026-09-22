@@ -82,4 +82,48 @@ class MediaPosterTest {
         assertEquals("Zulu Release", newestOrder[0].displayTitle)
         assertEquals("Alpha Release", newestOrder[1].displayTitle)
     }
+
+    @Test
+    fun testMediaPosterWithRating() {
+        val poster = MediaPoster(
+            title = "Inception",
+            year = "2010",
+            posterUrl = "https://images.metahub.space/poster/small/tt1375666/img",
+            description = "A thief who steals corporate secrets.",
+            mediaType = "Movie",
+            imdbId = "tt1375666",
+            rating = "8.8"
+        )
+
+        val str = json.encodeToString(MediaPoster.serializer(), poster)
+        val decoded = json.decodeFromString<MediaPoster>(str)
+
+        assertEquals("Inception", decoded.title)
+        assertEquals("8.8", decoded.rating)
+    }
+
+    @Test
+    fun testFormatRating() {
+        val repo = com.subget.app.data.repository.PosterRepository()
+        assertEquals("8.8", repo.formatRating("8.8"))
+        assertEquals("7.0", repo.formatRating("7"))
+        assertEquals("7.0", repo.formatRating("7.0"))
+        assertEquals("8.8", repo.formatRating("8.8/10"))
+        assertEquals("5.5", repo.formatRating("5.5"))
+        assertEquals(null, repo.formatRating("0"))
+        assertEquals(null, repo.formatRating("0.0"))
+        assertEquals(null, repo.formatRating("N/A"))
+        assertEquals(null, repo.formatRating(null))
+        assertEquals(null, repo.formatRating(""))
+        assertEquals(null, repo.formatRating("-1"))
+        assertEquals(null, repo.formatRating("12.5"))
+    }
+
+    @Test
+    fun testPosterRepositoryExtractsRatingFromCinemeta() = kotlinx.coroutines.runBlocking {
+        val repo = com.subget.app.data.repository.PosterRepository()
+        val poster = repo.getMediaPosterByImdbId("tt1375666", type = "movie")
+        assertNotNull(poster)
+        assertEquals("8.8", poster?.rating)
+    }
 }

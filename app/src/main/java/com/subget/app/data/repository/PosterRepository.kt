@@ -11,6 +11,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
@@ -175,6 +176,12 @@ class PosterRepository(
                 emptyList()
             }
 
+            val rawRating = metaObj["imdbRating"]?.jsonPrimitive?.contentOrNull
+                ?: metaObj["links"]?.jsonArray?.firstOrNull {
+                    it.jsonObject["category"]?.jsonPrimitive?.contentOrNull == "imdb"
+                }?.jsonObject?.get("name")?.jsonPrimitive?.contentOrNull
+            val rating = formatRating(rawRating)
+
             return MediaPoster(
                 title = name,
                 year = releaseInfo,
@@ -182,7 +189,8 @@ class PosterRepository(
                 description = description?.take(220)?.let { if (it.length >= 220) "$it..." else it },
                 mediaType = itemType,
                 imdbId = id,
-                seriesSeasons = seriesSeasons
+                seriesSeasons = seriesSeasons,
+                rating = rating
             )
         } catch (e: Exception) {
             Log.d("PosterRepository", "Cinemeta meta lookup failed for $id ($type): ${e.message}")
@@ -225,7 +233,7 @@ class PosterRepository(
             val posterUrl = selected["poster"]?.jsonPrimitive?.content
             val itemType = if (type == "movie") "Movie" else "TV Series"
 
-            // Try to get synopsis from meta endpoint if id exists
+            // Try to get synopsis and rating from meta endpoint if id exists
             var metaPoster: MediaPoster? = null
             if (!id.isNullOrBlank()) {
                 metaPoster = fetchFromCinemetaMeta(id, type, name, releaseInfo)
@@ -238,7 +246,8 @@ class PosterRepository(
                 description = metaPoster?.description ?: (selected["description"]?.jsonPrimitive?.content?.take(220)?.let { if (it.length >= 220) "$it..." else it }),
                 mediaType = itemType,
                 imdbId = id,
-                seriesSeasons = metaPoster?.seriesSeasons ?: emptyList()
+                seriesSeasons = metaPoster?.seriesSeasons ?: emptyList(),
+                rating = metaPoster?.rating ?: formatRating(selected["imdbRating"]?.jsonPrimitive?.contentOrNull)
             )
         } catch (e: Exception) {
             Log.d("PosterRepository", "Cinemeta lookup failed for $query ($type): ${e.message}")
@@ -270,18 +279,30 @@ class PosterRepository(
 
             val summaryRaw = obj["summary"]?.jsonPrimitive?.content
             val cleanSummary = summaryRaw?.replace(Regex("<[^>]*>"), "")?.trim()
+            val ratingRaw = obj["rating"]?.jsonObject?.get("average")?.jsonPrimitive?.contentOrNull
+            val rating = formatRating(ratingRaw)
 
             return MediaPoster(
                 title = title,
                 year = year,
                 posterUrl = posterUrl,
                 description = cleanSummary?.take(220)?.let { if (it.length >= 220) "$it..." else it },
-                mediaType = "TV Series"
+                mediaType = "TV Series",
+                rating = rating
             )
         } catch (e: Exception) {
             Log.d("PosterRepository", "TVmaze lookup failed for $query: ${e.message}")
             return null
         }
+    }
+
+    fun formatRating(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val cleaned = raw.trim().substringBefore("/").trim()
+        if (cleaned == "0" || cleaned == "0.0" || cleaned.equals("N/A", ignoreCase = true)) return null
+        val num = cleaned.toDoubleOrNull() ?: return null
+        if (num <= 0.0 || num > 10.0) return null
+        return String.format(java.util.Locale.US, "%.1f", num)
     }
 
     private fun sanitizeQuery(query: String): String {

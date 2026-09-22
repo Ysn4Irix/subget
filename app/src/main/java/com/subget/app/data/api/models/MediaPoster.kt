@@ -10,6 +10,7 @@ data class MediaPoster(
     val description: String? = null,
     val mediaType: String? = null,
     val imdbId: String? = null,
-    val seriesSeasons: List<Int> = emptyList()
+    val seriesSeasons: List<Int> = emptyList(),
+    val rating: String? = null
 )
 

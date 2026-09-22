@@ -89,7 +89,7 @@ fun MediaHeaderCardSkeleton(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                // Year & Type badge row
+                // Year, Type & Rating badge row
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(
                         modifier = Modifier
@@ -101,6 +101,13 @@ fun MediaHeaderCardSkeleton(
                     Box(
                         modifier = Modifier
                             .width(60.dp)
+                            .height(18.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(brush)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(38.dp)
                             .height(18.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(brush)

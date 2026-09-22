@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -116,7 +119,7 @@ fun MediaHeaderCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Column {
-                    // Badges row: Year & Media Type
+                    // Badges row: Year, Media Type & Rating
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -125,7 +128,12 @@ fun MediaHeaderCard(
                             Box(
                                 modifier = Modifier
                                     .background(
-                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        0.5.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                                         RoundedCornerShape(6.dp)
                                     )
                                     .padding(horizontal = 7.dp, vertical = 2.dp)
@@ -134,7 +142,7 @@ fun MediaHeaderCard(
                                     text = poster.year,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -146,6 +154,11 @@ fun MediaHeaderCard(
                                         MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
                                         RoundedCornerShape(6.dp)
                                     )
+                                    .border(
+                                        0.5.dp,
+                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f),
+                                        RoundedCornerShape(6.dp)
+                                    )
                                     .padding(horizontal = 7.dp, vertical = 2.dp)
                             ) {
                                 Text(
@@ -153,6 +166,40 @@ fun MediaHeaderCard(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        }
+
+                        if (!poster.rating.isNullOrBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .semantics(mergeDescendants = true) {
+                                        contentDescription = "Rating: ${poster.rating} out of 10"
+                                    }
+                                    .background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        0.5.dp,
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Text(
+                                    text = poster.rating,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
