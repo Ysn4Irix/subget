@@ -13,10 +13,26 @@ import com.subget.app.data.repository.SubtitleRepository
 import com.subget.app.data.storage.SubtitleStorageManager
 import com.subget.app.data.storage.ZipExtractor
 import com.subget.app.ui.components.DownloadStatus
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+
+data class CachedSearchResult(
+    val subtitles: List<SubdlSubtitleItem>,
+    val mediaPoster: MediaPoster?,
+    val sdId: Int?,
+    val imdbId: String?,
+    val filmTitle: String?,
+    val fetchedSeasons: Set<Int>,
+    val selectedSeason: Int?,
+    val selectedEpisode: Int?
+)
 
 enum class SubtitleSortOption(val displayName: String) {
     BEST_MATCH("Best Match"),
@@ -199,6 +215,7 @@ data class SearchUiState(
         }
 }
 
+@OptIn(FlowPreview::class)
 class SearchViewModel(
     private val subtitleRepository: SubtitleRepository,
     private val settingsRepository: SettingsRepository,
@@ -215,6 +232,19 @@ class SearchViewModel(
     )
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
+    private val _queryFlow = MutableStateFlow("")
+    private var activeSearchJob: Job? = null
+
+    private val searchCache = object : LinkedHashMap<String, CachedSearchResult>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedSearchResult>?): Boolean {
+            return size > 25
+        }
+    }
+
+    private fun buildCacheKey(query: String, language: String?): String {
+        return "${query.trim().lowercase()}|${language ?: "all"}"
+    }
+
     init {
         viewModelScope.launch {
             settingsRepository.apiKeyFlow.collect { key ->
@@ -230,6 +260,17 @@ class SearchViewModel(
                 )
             }
         }
+        viewModelScope.launch {
+            _queryFlow
+                .debounce(500L)
+                .distinctUntilChanged()
+                .collectLatest { query ->
+                    val trimmed = query.trim()
+                    if (trimmed.length >= 2) {
+                        executeSearch(rawQuery = trimmed, isAutoSearch = true)
+                    }
+                }
+        }
     }
 
     private var currentSdId: Int? = null
@@ -238,31 +279,39 @@ class SearchViewModel(
     private val fetchedSeasons = mutableSetOf<Int>()
 
     fun onQueryChanged(newQuery: String) {
-        val isClearing = newQuery.isBlank()
-        if (isClearing) {
+        val trimmed = newQuery.trim()
+        val isBelowThreshold = trimmed.length < 2
+
+        if (isBelowThreshold) {
+            activeSearchJob?.cancel()
             currentSdId = null
             currentImdbId = null
             currentFilmTitle = null
             fetchedSeasons.clear()
         }
+
         _uiState.value = _uiState.value.copy(
             query = newQuery,
             errorMessage = null,
-            isLoading = if (isClearing) false else _uiState.value.isLoading,
-            isPosterLoading = if (isClearing) false else _uiState.value.isPosterLoading,
-            subtitles = if (isClearing) emptyList() else _uiState.value.subtitles,
-            mediaPoster = if (isClearing) null else _uiState.value.mediaPoster,
-            selectedQuality = if (isClearing) QualityFilterOption.ALL else _uiState.value.selectedQuality,
-            selectedSeason = if (isClearing) null else _uiState.value.selectedSeason,
-            selectedEpisode = if (isClearing) null else _uiState.value.selectedEpisode
+            isLoading = if (isBelowThreshold) false else _uiState.value.isLoading,
+            isPosterLoading = if (isBelowThreshold) false else _uiState.value.isPosterLoading,
+            subtitles = if (isBelowThreshold) emptyList() else _uiState.value.subtitles,
+            mediaPoster = if (isBelowThreshold) null else _uiState.value.mediaPoster,
+            selectedQuality = if (isBelowThreshold) QualityFilterOption.ALL else _uiState.value.selectedQuality,
+            selectedSeason = if (isBelowThreshold) null else _uiState.value.selectedSeason,
+            selectedEpisode = if (isBelowThreshold) null else _uiState.value.selectedEpisode
         )
+
+        _queryFlow.value = newQuery
     }
 
     fun clearQuery() {
+        activeSearchJob?.cancel()
         currentSdId = null
         currentImdbId = null
         currentFilmTitle = null
         fetchedSeasons.clear()
+        _queryFlow.value = ""
         _uiState.value = _uiState.value.copy(
             query = "",
             subtitles = emptyList(),
@@ -278,7 +327,7 @@ class SearchViewModel(
 
     fun onLanguageSelected(code: String?) {
         _uiState.value = _uiState.value.copy(selectedLanguage = code)
-        if (_uiState.value.query.isNotBlank()) {
+        if (_uiState.value.query.trim().length >= 2) {
             searchSubtitles()
         }
     }
@@ -332,8 +381,9 @@ class SearchViewModel(
     }
 
     fun onRecentSearchClicked(query: String) {
+        _queryFlow.value = query
         _uiState.value = _uiState.value.copy(query = query)
-        searchSubtitles()
+        executeSearch(rawQuery = query, isAutoSearch = false)
     }
 
     fun removeRecentSearch(query: String) {
@@ -345,12 +395,21 @@ class SearchViewModel(
     }
 
     fun selectSubtitleForDetails(item: SubdlSubtitleItem?) {
+        if (item != null && _uiState.value.query.isNotBlank()) {
+            settingsRepository.addRecentSearch(_uiState.value.query.trim())
+        }
         _uiState.value = _uiState.value.copy(selectedSubtitleForDetails = item)
     }
 
     fun searchSubtitles() {
         val rawQuery = _uiState.value.query.trim()
         if (rawQuery.isBlank()) return
+        executeSearch(rawQuery = rawQuery, isAutoSearch = false)
+    }
+
+    private fun executeSearch(rawQuery: String, isAutoSearch: Boolean) {
+        val query = rawQuery.trim()
+        if (query.isBlank()) return
 
         if (!settingsRepository.hasApiKey()) {
             _uiState.value = _uiState.value.copy(
@@ -359,10 +418,36 @@ class SearchViewModel(
             return
         }
 
-        // Add query to recent searches
-        settingsRepository.addRecentSearch(rawQuery)
+        // Add query to recent searches on explicit user action
+        if (!isAutoSearch) {
+            settingsRepository.addRecentSearch(query)
+        }
 
-        val parsed = parseQuery(rawQuery)
+        val cacheKey = buildCacheKey(query, _uiState.value.selectedLanguage)
+        synchronized(searchCache) {
+            val cached = searchCache[cacheKey]
+            if (cached != null) {
+                currentSdId = cached.sdId
+                currentImdbId = cached.imdbId
+                currentFilmTitle = cached.filmTitle
+                fetchedSeasons.clear()
+                fetchedSeasons.addAll(cached.fetchedSeasons)
+
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    isPosterLoading = false,
+                    subtitles = cached.subtitles,
+                    mediaPoster = cached.mediaPoster,
+                    selectedQuality = QualityFilterOption.ALL,
+                    selectedSeason = cached.selectedSeason,
+                    selectedEpisode = cached.selectedEpisode,
+                    errorMessage = if (cached.subtitles.isEmpty()) "No subtitles found for \"$query\"." else null
+                )
+                return
+            }
+        }
+
+        val parsed = parseQuery(query)
         val cleanTitle = parsed.cleanTitle
         val querySeason = parsed.seasonNumber
         val queryEpisode = parsed.episodeNumber
@@ -372,7 +457,8 @@ class SearchViewModel(
         currentFilmTitle = cleanTitle
         fetchedSeasons.clear()
 
-        viewModelScope.launch {
+        activeSearchJob?.cancel()
+        activeSearchJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
                 isPosterLoading = true,
@@ -425,8 +511,25 @@ class SearchViewModel(
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         subtitles = items,
-                        errorMessage = if (items.isEmpty()) "No subtitles found for \"$rawQuery\"." else null
+                        errorMessage = if (items.isEmpty()) "No subtitles found for \"$query\"." else null
                     )
+
+                    fun updateCache() {
+                        synchronized(searchCache) {
+                            searchCache[cacheKey] = CachedSearchResult(
+                                subtitles = _uiState.value.subtitles,
+                                mediaPoster = _uiState.value.mediaPoster,
+                                sdId = currentSdId,
+                                imdbId = currentImdbId,
+                                filmTitle = currentFilmTitle,
+                                fetchedSeasons = fetchedSeasons.toSet(),
+                                selectedSeason = querySeason,
+                                selectedEpisode = queryEpisode
+                            )
+                        }
+                    }
+
+                    updateCache()
 
                     // Match Image Retrieval with exact media returned by SubDL
                     if (matchedMedia != null) {
@@ -448,22 +551,26 @@ class SearchViewModel(
                                         mediaPoster = exactPoster,
                                         isPosterLoading = false
                                     )
+                                    updateCache()
                                     if (exactPoster.seriesSeasons.isNotEmpty()) {
                                         autoFetchOtherSeasons(exactPoster.seriesSeasons)
                                     }
                                 } else {
                                     quickPosterJob.join()
                                     _uiState.value = _uiState.value.copy(isPosterLoading = false)
+                                    updateCache()
                                 }
                             } catch (_: Exception) {
                                 quickPosterJob.join()
                                 _uiState.value = _uiState.value.copy(isPosterLoading = false)
+                                updateCache()
                             }
                         }
                     } else {
                         launch {
                             quickPosterJob.join()
                             _uiState.value = _uiState.value.copy(isPosterLoading = false)
+                            updateCache()
                         }
                     }
                 },
@@ -504,11 +611,23 @@ class SearchViewModel(
                     it.fullDownloadUrl.ifBlank { "${it.season}_${it.episode}_${it.displayTitle}" }
                 }
                 _uiState.value = _uiState.value.copy(subtitles = merged)
+                val cacheKey = buildCacheKey(_uiState.value.query, _uiState.value.selectedLanguage)
+                synchronized(searchCache) {
+                    searchCache[cacheKey]?.let { old ->
+                        searchCache[cacheKey] = old.copy(
+                            subtitles = merged,
+                            fetchedSeasons = fetchedSeasons.toSet()
+                        )
+                    }
+                }
             }
         }
     }
 
     fun downloadSubtitle(item: SubdlSubtitleItem) {
+        if (_uiState.value.query.isNotBlank()) {
+            settingsRepository.addRecentSearch(_uiState.value.query.trim())
+        }
         val downloadUrl = item.fullDownloadUrl
         if (downloadUrl.isBlank()) {
             _uiState.value = _uiState.value.copy(

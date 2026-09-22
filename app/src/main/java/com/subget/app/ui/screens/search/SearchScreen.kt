@@ -289,7 +289,6 @@ fun SearchScreen(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                keyboardController?.hide()
                                 viewModel.searchSubtitles()
                             }),
                             modifier = Modifier
@@ -299,7 +298,14 @@ fun SearchScreen(
                         )
                     }
                     if (uiState.query.isNotEmpty()) {
-                        Spacer(modifier = Modifier.width(4.dp))
+                        if (uiState.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
                         Box(
                             modifier = Modifier
                                 .size(28.dp)
@@ -325,7 +331,6 @@ fun SearchScreen(
                                 .background(MaterialTheme.colorScheme.primary)
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    keyboardController?.hide()
                                     viewModel.searchSubtitles()
                                 },
                             contentAlignment = Alignment.Center
@@ -358,7 +363,7 @@ fun SearchScreen(
                     .weight(1f)
             ) {
                 when {
-                    uiState.isLoading -> {
+                    uiState.isLoading && uiState.subtitles.isEmpty() -> {
                         SearchResultsSkeleton(isPosterLoading = uiState.isPosterLoading)
                     }
 
@@ -547,7 +552,9 @@ fun SearchScreen(
                         LazyColumn(
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer(alpha = if (uiState.isLoading) 0.65f else 1.0f)
                         ) {
                             // Filter & Sort Control Bar (Zero-Scroll Adaptive Layout)
                             item(key = "filter_sort_bar") {
