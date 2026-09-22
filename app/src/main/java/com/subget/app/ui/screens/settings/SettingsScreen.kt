@@ -3,11 +3,17 @@ package com.subget.app.ui.screens.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.rotate
+import com.subget.app.data.api.models.ApiQuotaInfo
 import androidx.compose.ui.res.painterResource
 import com.subget.app.R
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +44,8 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Poll
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
@@ -376,6 +384,16 @@ fun SettingsScreen(
                 }
             }
 
+            if (uiState.apiKey.isNotBlank()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                ApiQuotaCard(
+                    quota = uiState.quotaInfo,
+                    isRefreshing = uiState.isRefreshingQuota,
+                    errorMessage = uiState.quotaErrorMessage,
+                    onRefresh = viewModel::refreshQuota
+                )
+            }
+
             // SECTION 3: PREFERENCES
             SettingsSectionHeader(title = "SEARCH PREFERENCES")
 
@@ -663,4 +681,161 @@ private fun SettingsSectionHeader(title: String) {
         letterSpacing = 1.sp,
         modifier = Modifier.padding(start = 4.dp)
     )
+}
+
+@Composable
+private fun ApiQuotaCard(
+    quota: ApiQuotaInfo?,
+    isRefreshing: Boolean,
+    errorMessage: String?,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "quotaRefresh")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing)
+        ),
+        label = "refreshSpin"
+    )
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header Row: Icon + Title + Reset / Refresh
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Poll,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Requests today",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val resetText = quota?.formattedResetTime?.let { "Resets $it" }
+                        ?: quota?.resetCountdownText?.let { "Resets $it" }
+                    if (resetText != null) {
+                        Text(
+                            text = resetText,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
+                    IconButton(
+                        onClick = onRefresh,
+                        enabled = !isRefreshing,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh Quota",
+                            tint = if (isRefreshing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .then(if (isRefreshing) Modifier.rotate(rotation) else Modifier)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (quota != null) {
+                val progress = quota.percentage
+                val barColor = when {
+                    quota.isExhausted -> MaterialTheme.colorScheme.error
+                    quota.isLow -> Color(0xFFF59E0B)
+                    else -> MaterialTheme.colorScheme.primary
+                }
+
+                // Smooth Progress Bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress.coerceIn(0.01f, 1f))
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(barColor)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Stats row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${quota.used} / ${quota.limit} today · ${quota.remaining} remaining",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Plan pill
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "${quota.plan.uppercase()} PLAN",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "No requests recorded today yet. Quota will update automatically on search or tap refresh.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    lineHeight = 16.sp
+                )
+            }
+
+            if (!errorMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = errorMessage,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
 }

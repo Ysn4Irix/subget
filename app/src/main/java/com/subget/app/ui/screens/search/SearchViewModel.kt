@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.subget.app.data.api.models.ApiQuotaInfo
 import com.subget.app.data.api.models.MediaPoster
 import com.subget.app.data.api.models.SearchSuggestion
 import com.subget.app.data.api.models.SubdlSubtitleItem
@@ -75,7 +76,8 @@ data class SearchUiState(
     val snackbarMessage: String? = null,
     val suggestions: List<SearchSuggestion> = emptyList(),
     val showSuggestions: Boolean = false,
-    val isSuggestionsLoading: Boolean = false
+    val isSuggestionsLoading: Boolean = false,
+    val quotaInfo: ApiQuotaInfo? = null
 ) {
     val availableSeasons: List<Int>
         get() {
@@ -231,7 +233,8 @@ class SearchViewModel(
         SearchUiState(
             hasApiKey = settingsRepository.hasApiKey(),
             isFirstLaunch = settingsRepository.isFirstLaunch(),
-            recentSearches = settingsRepository.getRecentSearches()
+            recentSearches = settingsRepository.getRecentSearches(),
+            quotaInfo = settingsRepository.getQuota()
         )
     )
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
@@ -254,6 +257,13 @@ class SearchViewModel(
             settingsRepository.apiKeyFlow.collect { key ->
                 _uiState.value = _uiState.value.copy(
                     hasApiKey = key.isNotBlank()
+                )
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.quotaFlow.collect { quota ->
+                _uiState.value = _uiState.value.copy(
+                    quotaInfo = quota
                 )
             }
         }

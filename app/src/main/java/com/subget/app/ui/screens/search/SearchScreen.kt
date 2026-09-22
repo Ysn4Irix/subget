@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import com.subget.app.R
 import com.subget.app.data.api.models.SearchSuggestion
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -171,10 +173,22 @@ fun SearchScreen(
                                 color = MaterialTheme.colorScheme.onBackground,
                                 letterSpacing = 1.sp
                             )
+                            val quota = uiState.quotaInfo
+                            val subtitleText = when {
+                                !uiState.hasApiKey -> "API Key Needed"
+                                quota != null && quota.isExhausted -> "⛔ Daily Quota Reached"
+                                quota != null && quota.isLow -> "⚠️ ${quota.remaining} requests left"
+                                else -> "SubDL • Downloader"
+                            }
+                            val subtitleColor = when {
+                                !uiState.hasApiKey || (quota != null && quota.isExhausted) -> MaterialTheme.colorScheme.error
+                                quota != null && quota.isLow -> Color(0xFFF59E0B)
+                                else -> MaterialTheme.colorScheme.tertiary
+                            }
                             Text(
-                                text = if (uiState.hasApiKey) "SubDL • Downloader" else "API Key Needed",
+                                text = subtitleText,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (uiState.hasApiKey) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+                                color = subtitleColor,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -245,6 +259,63 @@ fun SearchScreen(
                             )
                             Text(
                                 text = "Tap here to configure your free key in Settings.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Daily Quota Limit Warning Banner
+            AnimatedVisibility(
+                visible = uiState.hasApiKey && uiState.quotaInfo?.isExhausted == true,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                val quota = uiState.quotaInfo
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .clickable { onNavigateToSettings() },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(14.dp),
+                    border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(MaterialTheme.colorScheme.error.copy(alpha = 0.4f)))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Daily API Quota Limit Reached",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontSize = 14.sp
+                            )
+                            val resetDetail = if (quota?.resetCountdownText != null) {
+                                "Daily limit of ${quota.limit} requests reached. Resets ${quota.resetCountdownText}."
+                            } else {
+                                "Daily limit of ${quota?.limit ?: 2000} requests reached. Resets tonight."
+                            }
+                            Text(
+                                text = "$resetDetail Tap to view details in Settings.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                             )

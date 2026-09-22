@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.subget.app.data.api.models.ApiQuotaInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,9 @@ class SettingsRepository(context: Context) {
     private val _recentSearchesFlow = MutableStateFlow(getRecentSearches())
     val recentSearchesFlow: StateFlow<List<String>> = _recentSearchesFlow.asStateFlow()
 
+    private val _quotaFlow = MutableStateFlow<ApiQuotaInfo?>(getQuota())
+    val quotaFlow: StateFlow<ApiQuotaInfo?> = _quotaFlow.asStateFlow()
+
     fun getThemeMode(): String {
         return prefs.getString(KEY_THEME_MODE, THEME_LIGHT) ?: THEME_LIGHT
     }
@@ -42,12 +46,50 @@ class SettingsRepository(context: Context) {
 
     fun setApiKey(key: String) {
         val cleanKey = key.trim()
+        val oldKey = getApiKey()
+        if (cleanKey != oldKey) {
+            clearQuota()
+        }
         prefs.edit().putString(KEY_API_KEY, cleanKey).apply()
         _apiKeyFlow.value = cleanKey
     }
 
     fun hasApiKey(): Boolean {
         return getApiKey().isNotBlank()
+    }
+
+    fun getQuota(): ApiQuotaInfo? {
+        val limit = prefs.getInt(KEY_QUOTA_LIMIT, -1)
+        val remaining = prefs.getInt(KEY_QUOTA_REMAINING, -1)
+        if (limit <= 0 || remaining < 0) return null
+        val reset = prefs.getLong(KEY_QUOTA_RESET, -1L).takeIf { it > 0 }
+        val plan = prefs.getString(KEY_QUOTA_PLAN, "Free") ?: "Free"
+        return ApiQuotaInfo(
+            limit = limit,
+            remaining = remaining,
+            resetEpochSeconds = reset,
+            plan = plan
+        )
+    }
+
+    fun setQuota(quota: ApiQuotaInfo) {
+        prefs.edit()
+            .putInt(KEY_QUOTA_LIMIT, quota.limit)
+            .putInt(KEY_QUOTA_REMAINING, quota.remaining)
+            .putLong(KEY_QUOTA_RESET, quota.resetEpochSeconds ?: -1L)
+            .putString(KEY_QUOTA_PLAN, quota.plan)
+            .apply()
+        _quotaFlow.value = quota
+    }
+
+    fun clearQuota() {
+        prefs.edit()
+            .remove(KEY_QUOTA_LIMIT)
+            .remove(KEY_QUOTA_REMAINING)
+            .remove(KEY_QUOTA_RESET)
+            .remove(KEY_QUOTA_PLAN)
+            .apply()
+        _quotaFlow.value = null
     }
 
     fun getPreferredLanguages(): String {
@@ -137,6 +179,10 @@ class SettingsRepository(context: Context) {
         private const val KEY_FIRST_LAUNCH = "is_first_launch"
         private const val KEY_THEME_MODE = "subget_theme_mode"
         private const val KEY_RECENT_SEARCHES = "subget_recent_searches"
+        private const val KEY_QUOTA_LIMIT = "subdl_quota_limit"
+        private const val KEY_QUOTA_REMAINING = "subdl_quota_remaining"
+        private const val KEY_QUOTA_RESET = "subdl_quota_reset"
+        private const val KEY_QUOTA_PLAN = "subdl_quota_plan"
 
         const val THEME_LIGHT = "LIGHT"
         const val THEME_DARK = "DARK"
