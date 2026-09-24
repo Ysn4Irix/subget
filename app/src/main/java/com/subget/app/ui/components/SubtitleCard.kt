@@ -261,10 +261,16 @@ fun SubtitleCard(
                     }
 
                     is DownloadStatus.Completed -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             // Saved Button
                             FilledTonalButton(
-                                onClick = onDownloadClick,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onDownloadClick()
+                                },
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
                                     contentColor = MaterialTheme.colorScheme.tertiary
@@ -287,24 +293,23 @@ fun SubtitleCard(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(6.dp))
-
                             // Share / Open in Player Button
-                            IconButton(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onShareClick()
-                                },
+                            Box(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onShareClick()
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Share,
                                     contentDescription = "Share",
                                     tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
