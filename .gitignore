@@ -15,6 +15,7 @@ local.properties
 *.aab
 *.ap_
 *.idsig
+*.sha256
 
 # Kotlin & Gradle cache
 .kotlin/
