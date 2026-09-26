@@ -20,6 +20,7 @@ kotlin {
                 implementation(compose.desktop.currentOs)
                 implementation(compose.material3)
                 implementation(compose.materialIconsExtended)
+                implementation(compose.components.resources)
                 implementation(libs.okhttp)
                 implementation(libs.kotlinx.coroutines.swing)
             }
@@ -45,6 +46,7 @@ compose.desktop {
             windows {
                 menuGroup = "Subget"
                 upgradeUuid = "b24479e0-8263-4a1d-a3d8-5527db580a67"
+                iconFile.set(project.file("src/jvmMain/resources/icon.ico"))
             }
         }
     }

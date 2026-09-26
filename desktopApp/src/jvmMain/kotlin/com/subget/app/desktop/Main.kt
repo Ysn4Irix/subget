@@ -23,6 +23,9 @@ import com.subget.app.ui.AppDependencies
 import com.subget.app.ui.SubgetApp
 import com.subget.app.ui.theme.SubgetTheme
 import okhttp3.OkHttpClient
+import org.jetbrains.compose.resources.painterResource
+import subget.shared.generated.resources.Res
+import subget.shared.generated.resources.brand_logo
 import java.awt.Dimension
 
 fun main() = application {
@@ -55,6 +58,7 @@ fun main() = application {
         onCloseRequest = ::exitApplication,
         state = windowState,
         title = "Subget - Subtitle Downloader",
+        icon = painterResource(Res.drawable.brand_logo),
         undecorated = true,
         transparent = false
     ) {
