@@ -16,6 +16,8 @@ build/
 *.ap_
 *.idsig
 *.sha256
+*.exe
+*.msi
 
 # Kotlin & Gradle cache
 .kotlin/
