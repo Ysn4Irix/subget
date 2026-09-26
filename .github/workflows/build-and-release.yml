@@ -34,18 +34,18 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Unit Tests
-        run: ./gradlew testReleaseUnitTest --continue
+        run: ./gradlew test --continue
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew :androidApp:assembleRelease
 
       - name: Sign Release APK
         id: sign_apk
         run: |
-          APK_PATH="app/build/outputs/apk/release/app-release-unsigned.apk"
+          APK_PATH="androidApp/build/outputs/apk/release/androidApp-release-unsigned.apk"
           if [ ! -f "$APK_PATH" ]; then
             echo "Unsigned APK not found, checking for release APK..."
-            APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+            APK_PATH=$(find androidApp/build/outputs/apk/release -name "*.apk" | head -n 1)
           fi
           
           OUTPUT_NAME="Subget-${GITHUB_REF_NAME}.apk"

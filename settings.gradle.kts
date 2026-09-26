@@ -20,4 +20,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Subget"
-include(":app")
+include(":shared")
+include(":androidApp")
+include(":desktopApp")
+
