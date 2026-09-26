@@ -48,6 +48,12 @@ import com.subget.app.ui.screens.search.SearchScreen
 import com.subget.app.ui.screens.search.SearchViewModel
 import com.subget.app.ui.screens.settings.SettingsScreen
 import com.subget.app.ui.screens.settings.SettingsViewModel
+import coil3.ImageLoader
+import coil3.compose.setSingletonImageLoaderFactory
+import coil3.network.ktor3.KtorNetworkFetcherFactory
+import coil3.request.crossfade
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 
 data class AppDependencies(
     val subtitleRepository: SubtitleRepository,
@@ -65,6 +71,15 @@ val LocalAppDependencies = compositionLocalOf<AppDependencies> {
 fun SubgetApp(
     dependencies: AppDependencies? = null
 ) {
+    setSingletonImageLoaderFactory { context ->
+        ImageLoader.Builder(context)
+            .components {
+                add(KtorNetworkFetcherFactory(httpClient = { HttpClient(CIO) }))
+            }
+            .crossfade(true)
+            .build()
+    }
+
     if (dependencies != null) {
         CompositionLocalProvider(LocalAppDependencies provides dependencies) {
             SubgetContent()

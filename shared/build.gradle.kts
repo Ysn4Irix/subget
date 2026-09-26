@@ -39,6 +39,7 @@ kotlin {
                 // Image loading with Coil 3
                 implementation(libs.coil3.compose)
                 implementation(libs.coil3.network.ktor3)
+                implementation(libs.ktor.client.cio)
 
                 // OkHttp (runs on Android & JVM Desktop)
                 implementation(libs.okhttp)

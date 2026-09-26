@@ -42,15 +42,22 @@ import com.subget.app.ui.components.BrandLogo
 fun WindowScope.CinemaModernTitleBar(
     windowState: WindowState,
     onCloseRequest: () -> Unit,
+    isDark: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val isMaximized = windowState.placement == WindowPlacement.Maximized
+    val backgroundColor = if (isDark) Color(0xFF0B0E14) else Color(0xFFF8FAFC)
+    val titleColor = if (isDark) Color(0xFFF1F5F9) else Color(0xFF0F172A)
+    val subtitleColor = if (isDark) Color(0xFF64748B) else Color(0xFF64748B)
+    val dividerColor = if (isDark) Color(0xFF1C2333) else Color(0xFFE2E8F0)
+    val controlIconColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF475569)
+    val controlHoverColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(40.dp)
-            .background(Color(0xFF0B0E14))
+            .background(backgroundColor)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
@@ -70,7 +77,7 @@ fun WindowScope.CinemaModernTitleBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BrandLogo(
-                        isDark = true,
+                        isDark = isDark,
                         height = 20.dp,
                         modifier = Modifier.clip(RoundedCornerShape(4.dp))
                     )
@@ -82,7 +89,7 @@ fun WindowScope.CinemaModernTitleBar(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.2.sp,
-                        color = Color(0xFFF1F5F9)
+                        color = titleColor
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -90,7 +97,7 @@ fun WindowScope.CinemaModernTitleBar(
                     Box(
                         modifier = Modifier
                             .size(3.dp)
-                            .background(Color(0xFF475569), RoundedCornerShape(1.dp))
+                            .background(subtitleColor.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -99,7 +106,7 @@ fun WindowScope.CinemaModernTitleBar(
                         text = "Cinema Subtitle Downloader",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF64748B)
+                        color = subtitleColor
                     )
                 }
             }
@@ -112,13 +119,13 @@ fun WindowScope.CinemaModernTitleBar(
                 // Minimize Button
                 TitleBarButton(
                     onClick = { windowState.isMinimized = true },
-                    hoverColor = Color.White.copy(alpha = 0.08f)
+                    hoverColor = controlHoverColor
                 ) {
                     Box(
                         modifier = Modifier
                             .width(10.dp)
                             .height(1.5.dp)
-                            .background(Color(0xFF94A3B8))
+                            .background(controlIconColor)
                     )
                 }
 
@@ -131,7 +138,7 @@ fun WindowScope.CinemaModernTitleBar(
                             WindowPlacement.Maximized
                         }
                     },
-                    hoverColor = Color.White.copy(alpha = 0.08f)
+                    hoverColor = controlHoverColor
                 ) {
                     if (isMaximized) {
                         // Restore Icon (overlapping squares)
@@ -140,13 +147,13 @@ fun WindowScope.CinemaModernTitleBar(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .align(Alignment.BottomStart)
-                                    .border(1.dp, Color(0xFF94A3B8))
+                                    .border(1.dp, controlIconColor)
                             )
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .align(Alignment.TopEnd)
-                                    .border(1.dp, Color(0xFF94A3B8))
+                                    .border(1.dp, controlIconColor)
                             )
                         }
                     } else {
@@ -154,7 +161,7 @@ fun WindowScope.CinemaModernTitleBar(
                         Box(
                             modifier = Modifier
                                 .size(9.dp)
-                                .border(1.2.dp, Color(0xFF94A3B8))
+                                .border(1.2.dp, controlIconColor)
                         )
                     }
                 }
@@ -169,7 +176,7 @@ fun WindowScope.CinemaModernTitleBar(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
                         modifier = Modifier.size(15.dp),
-                        tint = if (isHovered) Color.White else Color(0xFF94A3B8)
+                        tint = if (isHovered) Color.White else controlIconColor
                     )
                 }
             }
@@ -179,7 +186,7 @@ fun WindowScope.CinemaModernTitleBar(
         HorizontalDivider(
             modifier = Modifier.align(Alignment.BottomCenter),
             thickness = 0.5.dp,
-            color = Color(0xFF1C2333)
+            color = dividerColor
         )
     }
 }
